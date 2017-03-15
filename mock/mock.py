@@ -62,6 +62,7 @@ try:
     import builtins
 except ImportError:
     import __builtin__ as builtins
+import types
 from types import ModuleType
 
 import six
@@ -209,6 +210,8 @@ def _check_signature(func, mock, skipfirst, instance=False):
         sig.bind(*args, **kwargs)
     _copy_func_details(func, checksig)
     type(mock)._mock_check_sig = checksig
+
+    return sig
 
 
 def _copy_func_details(func, funcopy):
@@ -570,9 +573,9 @@ class NonCallableMock(Base):
                 _spec_class = spec
             else:
                 _spec_class = _get_class(spec)
-            res = _get_signature_object(spec,
-                                        _spec_as_instance, _eat_self)
-            _spec_signature = res and res[1]
+
+            _spec_signature = _check_signature(spec, self, _eat_self,
+                                               _spec_as_instance)
 
             spec = dir(spec)
 
@@ -712,9 +715,15 @@ class NonCallableMock(Base):
                 # execution?
                 wraps = getattr(self._mock_wraps, name)
 
+            # get the mock's spec attribute with the same name and
+            # pass it to the child.
+            spec_class = self.__dict__.get('_spec_class')
+            spec = getattr(spec_class, name, None)
+            is_type = isinstance(spec_class, ClassTypes)
+            eat_self = _must_skip(spec_class, name, is_type)
             result = self._get_child_mock(
-                parent=self, name=name, wraps=wraps, _new_name=name,
-                _new_parent=self
+                spec=spec, parent=self, name=name, wraps=wraps, _new_name=name,
+                _new_parent=self, _eat_self=eat_self
             )
             self._mock_children[name]  = result
 
