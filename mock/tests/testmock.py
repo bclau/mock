@@ -539,6 +539,36 @@ class MockTest(unittest.TestCase):
             self._check_autospeced_something(mock)
 
 
+    def _check_args_order(self, something):
+        for method_name in ['meth', 'cmeth', 'smeth']:
+            mock_method = getattr(something, method_name)
+
+            # check that methods are still callable with correct args, kwargs,
+            # or non-sentinel args.
+            mock_method('b', 'a', 'c')
+            mock_method('d', 'b', 'a', 'd')
+            mock_method(sentinel.a, 'b', sentinel.c, 'd')
+            mock_method('a', sentinel.b, 'c', sentinel.d)
+            mock_method(c=sentinel.c, b=sentinel.b, a=sentinel.a)
+
+            # assert that TypeError is raised if the method signature is not
+            # respected.
+            self.assertRaises(TypeError, mock_method, sentinel.a, sentinel.c,
+                              sentinel.b)
+            self.assertRaises(TypeError, mock_method, 'a', sentinel.c,
+                              sentinel.b)
+            self.assertRaises(TypeError, mock_method, 'a', 'c', sentinel.b)
+            self.assertRaises(TypeError, mock_method, sentinel.a)
+            self.assertRaises(TypeError, mock_method, a=sentinel.a)
+            self.assertRaises(TypeError, mock_method, sentinel.a, sentinel.b,
+                              sentinel.c, e=sentinel.e)
+
+
+    def test_mock_spec_assert_args_order(self):
+        mock = Mock(spec=Something)
+        self._check_args_order(mock)
+
+
     def test_mock_spec_function(self):
         def foo(lish):
             pass
@@ -839,6 +869,13 @@ class MockTest(unittest.TestCase):
     def test_patch_autospec_class(self, mock_meth, mock_cmeth, mock_smeth):
         something = Something()
         self._check_autospeced_something(something)
+
+
+    def test_patch_autospec_assert_args_order(self):
+        something = Something()
+        with patch.multiple(something, meth=DEFAULT, cmeth=DEFAULT,
+                            smeth=DEFAULT, autospec=True):
+            self._check_args_order(something)
 
 
     def test_configure_mock(self):

@@ -206,8 +206,27 @@ def _check_signature(func, mock, skipfirst, instance=False):
     if sig is None:
         return
     func, sig = sig
+
+    # In Python 3, inspect.getfulargspec is preferable.
+    getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
+    expected_args = getargspec(func).args
+    if skipfirst or getattr(func, '__self__', None):
+        # class methods have skipfirst=False, but they have __self__ set.
+        expected_args = expected_args[1:]
+
     def checksig(_mock_self, *args, **kwargs):
         sig.bind(*args, **kwargs)
+        for i in range(len(args)):
+            if not isinstance(args[i], _SentinelObject):
+                # not a sentinel. we cannot make any assertions on it.
+                continue
+            expected_sentinel = getattr(sentinel, expected_args[i])
+            if args[i] != expected_sentinel:
+                raise TypeError(
+                    "Invalid argument order. Argument number: %(i)s, "
+                    "Expected: %(expected)s, Actual: %(actual)s" % {
+                    "i": i, "expected": expected_sentinel, "actual": args[i]})
+
     _copy_func_details(func, checksig)
     type(mock)._mock_check_sig = checksig
 
